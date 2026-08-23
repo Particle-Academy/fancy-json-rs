@@ -57,6 +57,11 @@ abort, not an error a node can handle. Both writers **and `Value`'s own `Drop`**
 are iterative, so a value built in code, which the cap never sees, cannot
 overflow either.
 
+The reader itself is recursive descent, so **the cap is the guarantee**.
+`ParseOptions::with_max_depth` can raise it, and raising it takes the guarantee
+with it — do that only for a document you trust and a depth you have measured.
+Lowering it is always safe.
+
 ### Strict means strict
 
 No comments, no trailing commas, no unquoted keys, no single quotes, no `NaN` or

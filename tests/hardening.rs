@@ -202,3 +202,23 @@ fn error_positions_count_characters_not_bytes() {
     assert_eq!(e.line, 1);
     assert_eq!(e.column, 9);
 }
+
+#[test]
+fn the_default_cap_is_what_makes_the_reader_safe() {
+    // The reader is recursive descent, so the cap IS the guarantee — the
+    // writers and `Drop` are iterative and need no cap at all. This pins the
+    // default against a document an attacker writes in a few hundred bytes, and
+    // documents the shape of the hazard a caller re-arms by raising it.
+    let attack = "[".repeat(1_000_000) + &"]".repeat(1_000_000);
+    assert_eq!(err(&attack), ErrorKind::DepthLimitExceeded);
+
+    // And the refusal happens at the cap, not somewhere later: exactly
+    // DEFAULT_MAX_DEPTH levels is fine, one more is not.
+    let at_limit =
+        "[".repeat(fancy_json::DEFAULT_MAX_DEPTH) + &"]".repeat(fancy_json::DEFAULT_MAX_DEPTH);
+    assert!(parse(&at_limit).is_ok(), "the cap is inclusive");
+
+    let past = "[".repeat(fancy_json::DEFAULT_MAX_DEPTH + 1)
+        + &"]".repeat(fancy_json::DEFAULT_MAX_DEPTH + 1);
+    assert_eq!(err(&past), ErrorKind::DepthLimitExceeded);
+}

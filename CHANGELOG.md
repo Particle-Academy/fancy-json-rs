@@ -29,6 +29,10 @@ promising otherwise until 1.0.
   stack. Both writers and `Value`'s own `Drop` are iterative, so a value built
   in code — which the cap never sees — cannot overflow either.
 
+  The reader itself is recursive descent, so **the cap is the guarantee**.
+  `ParseOptions::with_max_depth` can raise it and raising it takes the guarantee
+  with it; both the method and the README say so.
+
 - **Strict RFC 8259.** No comments, trailing commas, unquoted keys, single
   quotes, `NaN`, `Infinity`, leading `+`, leading zeros, unescaped control
   characters, lone surrogates, or trailing data after the top-level value.

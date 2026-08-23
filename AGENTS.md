@@ -53,6 +53,14 @@ Three places, and only the first is obvious:
 - **Parsing** is capped at `DEFAULT_MAX_DEPTH`. A recursive-descent reader with
   no cap dies by stack overflow on a document an attacker writes in a few
   hundred bytes.
+
+  The reader is the one part that is NOT iterative, so **the cap is the
+  guarantee** rather than a belt over braces. `with_max_depth` can raise it and
+  raising it takes the guarantee away — which a consumer's test proved by
+  raising it to 50,000 to build a fixture and overflowing the stack inside the
+  parser. Both `with_max_depth` and the README say so now. Making the reader
+  iterative would remove the caveat; until someone does, do not describe this
+  crate as unconditionally recursion-free.
 - **Writing** is iterative — an explicit `Task` stack. The parser's cap does not
   protect it, because a value built in code was never parsed, and a loop is the
   natural way to build a deep one.
@@ -125,7 +133,7 @@ true, and nothing else in the build would notice.
 
 ## Status
 
-**0.1.0 — built and green, unpublished.** 52 tests. The crate name `fancy-json`
+**0.1.0 — built and green, unpublished.** 53 tests. The crate name `fancy-json`
 was verified free on crates.io on 2026-08-23 (send a User-Agent and keep a
 known-published control — a UA-less request 403s and every name looks taken).
 

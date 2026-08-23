@@ -41,6 +41,21 @@ impl ParseOptions {
     }
 
     /// Set the maximum nesting depth.
+    ///
+    /// # Raising this re-arms a stack overflow
+    ///
+    /// The reader is recursive descent, and [`DEFAULT_MAX_DEPTH`] is what
+    /// bounds it — chosen so recursion cannot reach the end of the stack on any
+    /// target this crate builds for. **Raising the cap removes that
+    /// guarantee**, and a stack overflow is an abort rather than an error the
+    /// caller can catch.
+    ///
+    /// Raise it only for a document you trust and a depth you have measured.
+    /// Lowering it is always safe, and is worth doing when you know the shape
+    /// of what you accept.
+    ///
+    /// The writers and `Value`'s `Drop` are iterative and are **not** affected
+    /// either way.
     #[must_use]
     pub const fn with_max_depth(mut self, depth: usize) -> Self {
         self.max_depth = depth;
