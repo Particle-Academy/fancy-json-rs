@@ -1,0 +1,32 @@
+[package]
+name = "fancy-json"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "A small, dependency-free JSON parser and writer for Rust. no_std + alloc, exact integers that never touch f64, a hard depth cap, and canonical output."
+license = "MIT"
+repository = "https://github.com/Particle-Academy/fancy-json-rs"
+homepage = "https://ui.particle.academy"
+keywords = ["json", "parser", "no_std", "serialization", "embedded"]
+categories = ["encoding", "parser-implementations", "no-std"]
+readme = "README.md"
+exclude = ["/.github", "/tests"]
+
+# NO DEPENDENCIES. Not "few" — none. This crate exists because its consumer
+# compiles it into a blockchain node, where every transitive crate is audit
+# surface. Adding one here needs the owner's approval and a written reason.
+[dependencies]
+
+[features]
+default = ["std"]
+# `std` adds `std::error::Error` for `Error` and `std::io` writing. Everything
+# else — parsing, the value tree, every writer — is `no_std` + `alloc`.
+std = []
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"

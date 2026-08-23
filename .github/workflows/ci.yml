@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Test
+        run: cargo test --all-features
+
+      - name: Test (release)
+        # The deep-nesting tests are the ones that behave differently with
+        # optimisation on: a smaller stack frame moves where a recursive
+        # implementation would have died, so the release run is the honest one.
+        run: cargo test --release --all-features
+
+  no-std:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabi
+
+      - name: Build for a target with no std at all
+        # `--no-default-features` on a host target proves the cfgs line up; a
+        # bare-metal target proves there is no accidental `std` in the tree,
+        # which is the claim the README actually makes.
+        run: cargo build --no-default-features --target thumbv7em-none-eabi
+
+  no-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: The dependency tree must stay empty
+        # The crate's headline claim, asserted rather than stated. A dependency
+        # added without the owner's approval fails the build here — which is the
+        # whole point, since nothing else would notice one appear.
+        run: |
+          tree=$(cargo tree --edges normal --prefix none --all-features | grep -v '^fancy-json' | grep -v '^$' || true)
+          if [ -n "$tree" ]; then
+            echo "fancy-json has grown dependencies:"
+            echo "$tree"
+            echo
+            echo "Third-party code needs the owner's approval. See the envelope AGENTS.md."
+            exit 1
+          fi
+          echo "cargo tree is one line. Good."
