@@ -10,6 +10,28 @@ promising otherwise until 1.0.
 
 ## [Unreleased]
 
+### Added
+
+- **`tests/determinism.rs`** — the byte-determinism properties a consensus
+  consumer needs, measured rather than asserted. Floats round-trip bit-for-bit
+  over 199,892 random bit patterns; canonical output is a function of the value
+  alone and a fixed point after one pass; the corpus digest is pinned at
+  `0x91bf02f13e6d8ab3`.
+
+  What is **not** guaranteed is measured too: `core`'s float `Display` cannot
+  vary by target (it is pure Rust, no platform `printf`) but is not a
+  byte-stability promise across Rust *releases*. The landmark test turns a
+  toolchain bump into a red build here; it cannot protect a consumer compiling
+  with a rustc we never tested.
+
+### Changed
+
+- **The tests SHIP.** `exclude` no longer drops `tests/` from the published
+  tarball. This crate's pitch is that someone auditing their dependency tree can
+  read and check it, and a tarball whose tests are missing fails exactly that
+  audience — `cargo test` on a vendored copy would have covered doctests and
+  nothing else. 15 files to 18; 19.2KiB to 25.0KiB compressed.
+
 ## [0.1.0] - 2026-08-23
 
 ### Added

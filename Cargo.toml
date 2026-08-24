@@ -10,7 +10,11 @@ homepage = "https://ui.particle.academy"
 keywords = ["json", "parser", "no_std", "serialization", "embedded"]
 categories = ["encoding", "parser-implementations", "no-std"]
 readme = "README.md"
-exclude = ["/.github", "/tests"]
+# The tests SHIP. This crate's pitch is that someone auditing their dependency
+# tree can read and check it, and a tarball whose tests are missing fails
+# exactly that audience -- `cargo test` on a vendored copy would cover doctests
+# and nothing else. Only CI config is excluded.
+exclude = ["/.github"]
 
 # NO DEPENDENCIES. Not "few" — none. This crate exists because its consumer
 # compiles it into a blockchain node, where every transitive crate is audit

@@ -76,7 +76,50 @@ representations, and `PosInt(0) != NegInt(0)` would make equality depend on how
 the value was *spelled* — which breaks round-trip tests in a way that looks like
 a writer bug.
 
-### 4. Key order survives, but does not decide equality
+### 4. Byte-determinism — measured, and where it is NOT guaranteed
+
+The property a consensus consumer needs is **same value, same bytes, on every
+machine, forever**. It is NOT "output reproduces input bytes"; no canonicalising
+writer does that, and a chain does not want it, because `1e3` and `1000.0` are
+the same value and preserving the spelling would make the bytes depend on who
+typed them. `tests/determinism.rs` measures the real property.
+
+**Guaranteed and measured today:**
+
+- **Floats round-trip bit-for-bit.** 199,892 random f64 bit patterns —
+  subnormals, extremes, negative zero — written and re-read to the identical
+  double. Shortest-round-trip formatting buys this.
+- **Canonical output is a function of the value alone.** Whitespace, key order,
+  `\u` escape spelling and duplicate-key position all vary in the input and the
+  canonical bytes do not.
+- **Canonical output is a fixed point after one pass.** Canonicalise once and
+  re-canonicalising never moves again — including over 20,000 random float
+  renderings, which is where a non-shortest writer would drift on pass two.
+- **No float can be non-finite**, so no NaN/Infinity divergence is
+  representable.
+- The corpus digest (FNV-1a over 299 canonical bytes) is pinned at
+  `0x91bf02f13e6d8ab3`. Two platforms that disagree on bytes disagree on that
+  number — in a test rather than in a halt.
+
+**NOT guaranteed, and this is the real exposure.** Float rendering comes from
+`core`'s `Display for f64`. It is pure Rust with no platform `printf`, so it
+cannot vary by TARGET — but Rust does not promise byte-exact output across
+RELEASES. `the_decimal_landmarks_render_to_exactly_these_bytes` pins the
+landmarks exactly and the extremes by length + digest, so a toolchain bump turns
+that into a red build here. **It does not protect a consumer compiling with a
+rustc we never tested.** Closing that means owning the float formatting rather
+than borrowing `core`'s — or refusing floats outright, which costs a consumer
+whose data has none exactly nothing.
+
+**Also measured:** Rust never uses exponent notation, so `5e-324` renders as 326
+bytes and `f64::MAX` as 311. Deterministic and verbose; a Ryū-style writer emits
+24. Recorded as a cost, not a defect.
+
+**Unicode is not normalised**, deliberately. Composed and decomposed `é` are
+different JSON strings and stay different. Normalising would make the bytes
+depend on a Unicode version, which is a moving dependency a chain must not have.
+
+### 5. Key order survives, but does not decide equality
 
 `Map` preserves insertion order, because every peer runtime does (a PHP array,
 a Python dict, a JS object). Sorting lives in `to_string_canonical`, not in the
@@ -133,7 +176,7 @@ true, and nothing else in the build would notice.
 
 ## Status
 
-**0.1.0 — built and green, unpublished.** 53 tests. The crate name `fancy-json`
+**0.1.0 — built and green, unpublished.** 63 tests, none ignored. The crate name `fancy-json`
 was verified free on crates.io on 2026-08-23 (send a User-Agent and keep a
 known-published control — a UA-less request 403s and every name looks taken).
 

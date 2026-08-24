@@ -98,6 +98,28 @@ fancy-json = { version = "0.1", default-features = false }
 The `std` feature (on by default) adds only `std::error::Error for Error`.
 Parsing, the value tree and all three writers work on `no_std` + `alloc`.
 
+## Byte-determinism
+
+Measured in `tests/determinism.rs`, because for a consensus consumer a rendering
+divergence is a halt rather than a bug. The property is **same value, same
+bytes** — not "output reproduces input bytes", which no canonicalising writer
+does and which a chain does not want.
+
+| | |
+|---|---|
+| floats round-trip bit-for-bit | 199,892 random bit patterns, incl. subnormals and `-0.0` |
+| canonical output depends on the value only | whitespace, key order, escape spelling, duplicate position all vary; bytes do not |
+| canonical output is a fixed point | canonicalise once, it never moves again |
+| non-finite floats | unrepresentable, so no `NaN`/`Infinity` divergence |
+| corpus digest | pinned at `0x91bf02f13e6d8ab3` |
+
+**The limit, stated plainly:** float rendering is `core`'s `Display for f64`.
+Pure Rust, no platform `printf`, so it cannot vary by target — but Rust does not
+promise byte-exact output across *releases*. The landmark test pins the bytes so
+a toolchain bump is a red build here; it cannot protect a consumer compiling
+with a rustc we never tested. Closing that means owning the float formatting, or
+refusing floats outright.
+
 ## What this is not
 
 Not a `serde` replacement. There are no derive macros and no `Serialize` /
