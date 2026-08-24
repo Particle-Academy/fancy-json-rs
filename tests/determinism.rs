@@ -326,3 +326,142 @@ fn unicode_is_not_normalised_and_that_is_deliberate() {
         to_string_canonical(&parse(decomposed).unwrap())
     );
 }
+
+/// The significant digits in one of this crate's decimal renderings.
+///
+/// Leading and trailing zeros are positional, not significant: `1000.0` and
+/// `0.0000001` each carry exactly one.
+fn significant_digits(text: &str) -> usize {
+    let digits: String = text.chars().filter(char::is_ascii_digit).collect();
+    let trimmed = digits.trim_start_matches('0').trim_end_matches('0');
+    if trimmed.is_empty() {
+        1
+    } else {
+        trimmed.len()
+    }
+}
+
+/// The fewest significant digits that still round-trip to `value`, found by
+/// asking Rust for scientific notation at increasing precision.
+fn minimum_significant_digits(value: f64) -> usize {
+    for precision in 0..=17 {
+        let candidate = format!("{value:.precision$e}");
+        if candidate.parse::<f64>().map(f64::to_bits) == Ok(value.to_bits()) {
+            return precision + 1;
+        }
+    }
+    18
+}
+
+#[test]
+fn float_rendering_is_shortest_round_trip_not_merely_round_trip() {
+    // Bit-for-bit round-trip proves the rendering is SUFFICIENT. It does not
+    // prove it is MINIMAL -- a writer emitting 17 digits for every float would
+    // pass that test and still produce different bytes from one emitting the
+    // shortest form. Two implementations only agree if both are shortest, so
+    // this is the assertion that makes the rendering a function of the VALUE
+    // rather than of whichever algorithm happened to be linked.
+    let mut rng = Xorshift(0x2026_0823_0000_0003);
+    let mut checked = 0_u32;
+
+    for _ in 0..50_000 {
+        let value = f64::from_bits(rng.next());
+        if !value.is_finite() {
+            continue;
+        }
+
+        let rendered = to_string(&Value::from(value));
+        let ours = significant_digits(&rendered);
+        let minimum = minimum_significant_digits(value);
+
+        assert_eq!(
+            ours, minimum,
+            "{value:e} rendered as {rendered} with {ours} significant digits; \
+             {minimum} round-trips"
+        );
+        checked += 1;
+    }
+
+    assert!(checked > 45_000);
+    println!("floats verified SHORTEST-round-trip: {checked}");
+
+    // And the landmarks, spelled out, because a sample is not a statement.
+    for (value, expected) in [(0.1_f64, 1), (1.5, 2), (1000.0, 1), (0.000_000_1, 1)] {
+        assert_eq!(
+            significant_digits(&to_string(&Value::from(value))),
+            expected
+        );
+    }
+}
+
+#[test]
+fn a_canonical_document_round_trips_byte_for_byte() {
+    // The POSITIVE half of the byte-round-trip question, and the class where
+    // input bytes ARE reproduced exactly: a document already in canonical form.
+    //
+    // That is the whole contract behind "canonicalise once". Anything else --
+    // whitespace, `\u` escapes, `1e3`, trailing zeros, duplicate keys -- is
+    // listed in `input_bytes_are_not_reproduced_and_here_is_exactly_why`, and
+    // every one of those differences disappears after one canonical pass.
+    for document in corpus() {
+        let canonical = to_string_canonical(&parse(document).unwrap());
+
+        // Byte-for-byte, through BOTH writers, in both directions.
+        assert_eq!(
+            to_string_canonical(&parse(&canonical).unwrap()),
+            canonical,
+            "canonical writer moved a canonical document"
+        );
+        assert_eq!(
+            to_string(&parse(&canonical).unwrap()),
+            canonical,
+            "plain writer moved a canonical document"
+        );
+    }
+
+    // Including the float extremes, where a writer that was not shortest would
+    // gain or lose a digit on the second pass.
+    for text in ["5e-324", "1.7976931348623157e308", "1e300", "0.1", "-0.0"] {
+        let canonical = to_string_canonical(&parse(text).unwrap());
+        assert_eq!(to_string_canonical(&parse(&canonical).unwrap()), canonical);
+    }
+}
+
+#[test]
+fn nothing_in_the_output_can_depend_on_the_target() {
+    // The audit, as far as a test can carry it. The rest is a CI gate that
+    // greps `src/` for the constructs this crate must never contain --
+    // `HashMap` above all, whose per-process randomised iteration order would
+    // make key order differ between two runs of the SAME binary.
+    //
+    // What reaches the output is: decimal integers, `core`'s shortest-round-trip
+    // float rendering, `\u00XX` for control bytes (a fixed four hex digits from
+    // a u8), and literal UTF-8. No pointer-width value, no byte-order-dependent
+    // encoding, and no locale-aware formatting is written anywhere.
+
+    // Pointer width cannot reach the bytes: the only `usize` in the writer is
+    // indent depth, which controls how many spaces a PRETTY document carries
+    // and is absent from compact and canonical output entirely.
+    let value = parse(r#"{"a":[1,2],"b":{}}"#).unwrap();
+    assert_eq!(to_string(&value), r#"{"a":[1,2],"b":{}}"#);
+    assert_eq!(to_string_canonical(&value), r#"{"a":[1,2],"b":{}}"#);
+
+    // Integers render in decimal at every width boundary a 32-bit target would
+    // expose. wasm32 (a 32-bit-pointer target) is built in CI for the same
+    // reason.
+    for text in [
+        "0",
+        "4294967295",
+        "4294967296",
+        "9223372036854775807",
+        "-9223372036854775808",
+        "18446744073709551615",
+    ] {
+        assert_eq!(to_string(&parse(text).unwrap()), text);
+    }
+
+    // Control bytes escape to a FIXED four hex digits, lowercase, regardless of
+    // anything ambient.
+    let control = Value::from("\u{0}\u{1}\u{1f}");
+    assert_eq!(to_string(&control), r#""\u0000\u0001\u001f""#);
+}

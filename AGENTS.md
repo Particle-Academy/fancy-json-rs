@@ -86,6 +86,19 @@ typed them. `tests/determinism.rs` measures the real property.
 
 **Guaranteed and measured today:**
 
+- **Float rendering is SHORTEST round-trip.** 49,979 floats: no rendering
+  with fewer significant digits round-trips. This matters as much as
+  round-tripping — a writer emitting 17 digits for every float would
+  round-trip perfectly and still disagree byte for byte with a shortest one.
+- **A canonical document round-trips BYTE-FOR-BYTE**, through both writers,
+  in both directions. That is the class where input bytes are reproduced
+  exactly, and it is the whole contract behind "canonicalise once".
+- **Nothing in the output can vary by target.** Decimal integers, `core`'s
+  float rendering, `\u00xx` from a `u8`, and literal UTF-8. No
+  pointer-width value, no endianness, no locale. Enforced by a CI gate that
+  greps `src/` for `HashMap`, `HashSet`, `RandomState`, `to_ne_bytes`,
+  `SystemTime`, `Instant` and the locale-aware case conversions — because a
+  test can measure the output but only a gate stops the cause coming back.
 - **Floats round-trip bit-for-bit.** 199,892 random f64 bit patterns —
   subnormals, extremes, negative zero — written and re-read to the identical
   double. Shortest-round-trip formatting buys this.
@@ -176,7 +189,7 @@ true, and nothing else in the build would notice.
 
 ## Status
 
-**0.1.0 — built and green, unpublished.** 63 tests, none ignored. The crate name `fancy-json`
+**0.1.0 — built and green, unpublished.** 66 tests, none ignored. The crate name `fancy-json`
 was verified free on crates.io on 2026-08-23 (send a User-Agent and keep a
 known-published control — a UA-less request 403s and every name looks taken).
 

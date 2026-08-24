@@ -100,25 +100,72 @@ Parsing, the value tree and all three writers work on `no_std` + `alloc`.
 
 ## Byte-determinism
 
-Measured in `tests/determinism.rs`, because for a consensus consumer a rendering
-divergence is a halt rather than a bug. The property is **same value, same
-bytes** — not "output reproduces input bytes", which no canonicalising writer
-does and which a chain does not want.
+**The guarantee: the same value serialises to the same bytes, on every target,
+forever.** For a consensus consumer a rendering divergence is a chain halt, not
+a bug, so this is a tested guarantee rather than a property that happens to
+hold. Everything below is measured in `tests/determinism.rs` and fails the build
+if it breaks.
 
-| | |
+Note what the guarantee is *not*: "output reproduces input bytes". No
+canonicalising writer does that and a chain should not want it — `1e3` and
+`1000.0` are the same value, and preserving the spelling would make the bytes
+depend on who typed them.
+
+| guaranteed | how it is held |
 |---|---|
-| floats round-trip bit-for-bit | 199,892 random bit patterns, incl. subnormals and `-0.0` |
-| canonical output depends on the value only | whitespace, key order, escape spelling, duplicate position all vary; bytes do not |
-| canonical output is a fixed point | canonicalise once, it never moves again |
-| non-finite floats | unrepresentable, so no `NaN`/`Infinity` divergence |
-| corpus digest | pinned at `0x91bf02f13e6d8ab3` |
+| floats round-trip **bit-for-bit** | 199,892 random bit patterns, incl. subnormals, extremes and `-0.0` |
+| float rendering is **shortest** round-trip | 49,979 floats: no fewer significant digits round-trips |
+| canonical output depends on the **value alone** | whitespace, key order, `\u` escape spelling and duplicate position all vary; bytes do not |
+| a **canonical document round-trips byte-for-byte** | through both writers, both directions |
+| canonical output is a **fixed point** after one pass | canonicalise once; it never moves again |
+| non-finite floats are **unrepresentable** | so no `NaN`/`Infinity` divergence exists |
+| nothing depends on target, endianness or locale | see below |
+| corpus digest | pinned at `0x91bf02f13e6d8ab3` — one number two platforms can compare |
 
-**The limit, stated plainly:** float rendering is `core`'s `Display for f64`.
-Pure Rust, no platform `printf`, so it cannot vary by target — but Rust does not
-promise byte-exact output across *releases*. The landmark test pins the bytes so
-a toolchain bump is a red build here; it cannot protect a consumer compiling
-with a rustc we never tested. Closing that means owning the float formatting, or
-refusing floats outright.
+**Shortest matters as much as round-tripping.** A writer emitting 17 digits for
+every float would round-trip perfectly and still disagree, byte for byte, with
+one emitting the shortest form. Shortest is what makes the rendering a function
+of the value rather than of whichever algorithm was linked.
+
+### Nothing in the output can vary by target
+
+What reaches the bytes is: decimal integers, `core`'s shortest-round-trip float
+rendering, `\u00xx` for control bytes (a fixed four lowercase hex digits from a
+`u8`), and literal UTF-8. No pointer-width value, no byte-order-dependent
+encoding, no locale-aware formatting. The only `usize` in the writer is indent
+depth, which is absent from compact and canonical output entirely.
+
+`HashMap` is the hazard that would break this quietly — its per-process
+randomised iteration order makes key order differ between two runs of the *same*
+binary. This crate contains none, and a **CI gate greps `src/`** for it and for
+`HashSet`, `RandomState`, `to_ne_bytes`, `SystemTime`, `Instant` and the
+locale-aware case conversions. CI also builds a 32-bit-pointer target.
+
+Key ordering is a deliberate pair, not an accident: `to_string` preserves
+insertion order (every peer runtime does), `to_string_canonical` sorts by UTF-8
+byte order at every depth. **For a chain, use `to_string_canonical`** — it is a
+function of the value alone.
+
+### NOT guaranteed — the one real gap
+
+**Float rendering across Rust releases.** The renderer is `core`'s
+`Display for f64`. It is pure Rust with no platform `printf`, so it *cannot*
+vary by target — but Rust does not promise byte-exact output across *releases*.
+
+`the_decimal_landmarks_render_to_exactly_these_bytes` pins the landmarks
+exactly and the extremes by length and digest, so a toolchain bump is a red
+build **here**. That does not protect a consumer compiling with a rustc we never
+tested. Closing it means owning the float formatting rather than borrowing
+`core`'s — or refusing floats outright, which costs a consumer whose data has
+none exactly nothing.
+
+Unicode is **not** normalised, deliberately. Composed and decomposed `é` are
+different JSON strings and stay different; normalising would make the bytes
+depend on a Unicode version, which is a moving dependency a chain must not have.
+
+Rust never emits exponent notation, so `5e-324` renders as 326 bytes and
+`f64::MAX` as 311. Deterministic and verbose — a Ryū-style writer emits 24.
+Recorded as a measured cost, not a defect.
 
 ## What this is not
 

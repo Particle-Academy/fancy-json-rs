@@ -47,6 +47,43 @@ jobs:
         # which is the claim the README actually makes.
         run: cargo build --no-default-features --target thumbv7em-none-eabi
 
+  determinism-hazards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # The determinism guarantee rests on constructs this crate must NEVER
+      # contain. Tests can measure the output; only a gate can stop the cause
+      # being reintroduced -- and `HashMap` is the one that matters most,
+      # because its per-process randomised iteration order would make key order
+      # differ between two runs of the SAME binary, which no golden would catch
+      # reliably.
+      - name: Forbidden constructs must not appear in src/
+        run: |
+          fail=0
+          check() {
+            if grep -rn "$1" src/ ; then
+              echo "^^ '$1' is forbidden in src/: $2"
+              fail=1
+            fi
+          }
+          check "HashMap"      "randomised iteration order -- use BTreeMap or the ordered Map"
+          check "HashSet"      "randomised iteration order"
+          check "RandomState"  "randomised hashing"
+          check "to_ne_bytes"  "native endianness reaches the output"
+          check "from_ne_bytes" "native endianness reaches the output"
+          check "SystemTime"   "a wall clock is not deterministic"
+          check "Instant"      "a wall clock is not deterministic"
+          check "to_lowercase(" "locale/Unicode-version dependent -- use to_ascii_lowercase"
+          check "to_uppercase(" "locale/Unicode-version dependent -- use to_ascii_uppercase"
+          if [ "$fail" -ne 0 ]; then
+            echo
+            echo "See AGENTS.md, 'Byte-determinism'. A consensus consumer treats a"
+            echo "rendering divergence as a chain halt, not a bug."
+            exit 1
+          fi
+          echo "src/ is free of every construct that could make output vary by run or target."
+
   no-dependencies:
     runs-on: ubuntu-latest
     steps:
