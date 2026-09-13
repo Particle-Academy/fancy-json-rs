@@ -1,6 +1,6 @@
 [package]
 name = "fancy-json"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.85"
 description = "A small, dependency-free JSON parser and writer for Rust. no_std + alloc, exact integers that never touch f64, a hard depth cap, and canonical output."

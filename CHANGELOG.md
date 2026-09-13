@@ -10,6 +10,13 @@ promising otherwise until 1.0.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-13
+
+The first TAGGED release. 0.1.0 was recorded here but never tagged, so every
+consumer depended on `branch = "main"` and got whatever `main` was that day.
+**What to do:** replace `branch = "main"` with `tag = "v0.1.1"` in your
+`Cargo.toml`. No API changed since 0.1.0.
+
 ### Added
 
 - **`tests/determinism.rs`** — the byte-determinism properties a consensus
