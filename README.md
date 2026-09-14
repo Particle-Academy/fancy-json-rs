@@ -1,5 +1,7 @@
 # fancy-json
 
+[![Fancified](art/fancified.svg)](https://particle.academy)
+
 A small, **dependency-free** JSON reader and writer for Rust. `no_std` + `alloc`.
 
 ```toml
