@@ -10,6 +10,10 @@ promising otherwise until 1.0.
 
 ## [Unreleased]
 
+### Changed
+
+- Rebranded the display name to Fancy Dev Kit (README and package description). Package names, the npm scope, URLs and the `fancy-ui` MCP id are unchanged.
+
 ### Security
 
 - **CI workflows now cap the `GITHUB_TOKEN` to `contents: read`.** With no
