@@ -7,7 +7,7 @@ works in this repo.
 
 This file describes **this crate's code**. Process rules — publishing, kit
 versioning, backports, the third-party approval bar — live in the envelope's
-`AGENTS.md` and are deliberately not repeated.
+`RULES.md` and are deliberately not repeated.
 
 ## What this crate is, and the one rule
 
